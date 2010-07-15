@@ -1,0 +1,4 @@
+#summary APT repository on Google Code
+#labels Phase-Deploy
+
+ros-n900 download files section can act as an APT repository. This is helpful to easily install ROS on N900 mobile phone.
