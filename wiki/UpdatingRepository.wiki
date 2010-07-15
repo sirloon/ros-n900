@@ -14,4 +14,4 @@ So, in order to create or update the repository (delete, add files), all files m
 (careful, with dpkg-scansources, sed "__repo__", not "__repo__/" (slash)).
 
 
-Upload new deb and source packages, as well as Packages.gz and Sources. Don't bother about __repo__ directory, all files can safely be "flatten" into GC download section.
+Upload new deb and source packages, as well as Packages.gz and Sources.gz. Don't bother about __repo__ directory, all files can safely be "flatten" into GC download section.
