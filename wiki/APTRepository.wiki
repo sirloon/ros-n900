@@ -19,4 +19,4 @@ deb http://ros-n900.googlecode.com/files /
 
 Use the same URL to deal with Debian source packages:
 
- * `deb http://ros-n900.googlecode.com/files /`
+ * `deb-src http://ros-n900.googlecode.com/files /`
