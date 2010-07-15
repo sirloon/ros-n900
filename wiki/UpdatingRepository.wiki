@@ -1,0 +1,11 @@
+#summary recipe to update APT repository
+#labels Phase-Deploy
+
+Download section is an APT repository. In order to update it (delete, add files), all files must first be locally downloaded to a directory Then, within this directory:
+
+  - add new deb and source packages
+  - if a package needs to be removed, delete it (also delete or deprecate it on Google Code site)
+  - dpkg-scanpackages . | gzip -9 - > Packages.gz
+  - dpkg-scansources . | geip -9 - > Sources
+
+Upload new deb and source packages, as well as Packages.gz and Sources.
