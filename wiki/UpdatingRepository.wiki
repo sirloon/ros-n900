@@ -3,9 +3,9 @@
 
 Download section is an APT repository. In order to update it (delete, add files), all files must first be locally downloaded to a directory Then, within this directory:
 
-  - add new deb and source packages. In order to know which files to add for sources, see dsc files
-  - if a package needs to be removed, delete it (also delete or deprecate it on Google Code site)
-  - dpkg-scanpackages . | gzip -9 - > Packages.gz
-  - dpkg-scansources . | geip -9 - > Sources
+ * add new deb and source files packages. In order to know which source files to add for a given packages, see its `dsc` files. Usually, a `dsc`, `tar.gz` and `diff.gz` should be copied
+ * if a package needs to be removed, delete it (also delete or deprecate it on Google Code site)
+ * `dpkg-scanpackages . | gzip -9 - > Packages.gz`
+ * `dpkg-scansources . | gzip -9 - > Sources.gz`
 
 Upload new deb and source packages, as well as Packages.gz and Sources.
