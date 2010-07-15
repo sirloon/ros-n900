@@ -1,11 +1,17 @@
 #summary recipe to update APT repository
 #labels Phase-Deploy
 
-Download section is an APT repository. In order to update it (delete, add files), all files must first be locally downloaded to a directory Then, within this directory:
+The following instructions explains how to use the download section (files) as an APT/deb Debian repository. The main problem is to avoid "./" in download URL, as Google Code won't serve such URI (404 not found).
+
+So, in order to create or update the repository (delete, add files), all files must first be locally downloaded to a directory named "__repo__" (it'll be sed...).  Then, within this directory:
 
  * add new deb and source files packages. In order to know which source files to add for a given packages, see its `dsc` files. Usually, a `dsc`, `tar.gz` and `diff.gz` should be copied
  * if a package needs to be removed, delete it (also delete or deprecate it on Google Code site)
- * `dpkg-scanpackages . | gzip -9 - > Packages.gz`
- * `dpkg-scansources . | gzip -9 - > Sources.gz`
+ * go to parent directory
+ * `dpkg-scanpackages __repo__ | sed "s#__repo__/##" | gzip -9 - > Packages.gz`
+ * `dpkg-scansources __repo__ | sed "s#__repo__##" |gzip -9 - > Sources.gz`
 
-Upload new deb and source packages, as well as Packages.gz and Sources.
+(careful, with dpkg-scansources, sed "__repo__", not "__repo__/" (slash)).
+
+
+Upload new deb and source packages, as well as Packages.gz and Sources. Don't bother about __repo__ directory, all files can safely be "flatten" into GC download section.
