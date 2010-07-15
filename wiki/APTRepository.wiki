@@ -16,3 +16,7 @@ deb http://ros-n900.googlecode.com/files /
 (careful, this is a huge download, you should use a Wifi connection to preserve your dataplan).
 
 `ros-boxturtle-base` package is optified, this means it will install in `/opt/ros-boxturtle-base/` directory, in `/opt` partition (2GB) instead of rootfs (256MB).
+
+Use the same URL to deal with Debian source packages:
+
+ * `deb http://ros-n900.googlecode.com/files /`
