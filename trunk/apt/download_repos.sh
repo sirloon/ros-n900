@@ -3,8 +3,9 @@
 
 if [ "$1" = "" ]
 then
-    echo "Provide either a Packages.gz or Sources.gz URL"
-    exit 255
+    $0 http://ros-n900.googlecode.com/files/Sources.gz
+    $0 http://ros-n900.googlecode.com/files/Packages.gz
+    exit 0
 fi
 
 OUTPUTDIR=$2
@@ -27,7 +28,7 @@ fi
 echo PACKAGESGZ: $PACKAGESGZ
 echo SOURCESGZ: $SOURCESGZ
 
-if [ $PACKAGESGZ != "" ]
+if [ "$PACKAGESGZ" != "" ]
 then
     echo Downloading packages into $OUTPUTDIR
     wget --no-cache $PACKAGESGZ -O Packages.gz
