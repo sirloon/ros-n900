@@ -32,7 +32,7 @@ then
         echo "Can't find googlecode_upload.py script. Either:"
         echo "  - put it in PATH"
         echo "  - or specify GC_UPLOAD environment"
-        echo
+	exit 255
     fi
 else
     GC_UPLOAD=`which googlecode_upload.py`
@@ -51,9 +51,10 @@ fi
 
 
 echo "Generating Packages.gz"
-dpkg-scanpackages $REPODIR | sed "s#$REPODIR/##" | gzip -9 - > $REPODIR/Packages.gz
+# over-ride file: fake
+dpkg-scanpackages $REPODIR /dev/null | sed "s#$REPODIR/##" | gzip -9 - > $REPODIR/Packages.gz
 echo "Generating Sources.gz"
-dpkg-scansources $REPODIR | sed "s#$REPODIR/##" | gzip -9 - > $REPODIR/Sources.gz
+dpkg-scansources $REPODIR /dev/null | sed "s#$REPODIR##" | gzip -9 - > $REPODIR/Sources.gz
 
 echo "Now upload $REPODIR content to Google Code..."
 for f in `ls __repo__`
@@ -61,7 +62,7 @@ do
     if [ "$f" = "Packages.gz" ]
     then
         $GC_UPLOAD -s "Packages.gz Debian repository file" -p "$PROJECT" -u $UPLOAD_USER -w $UPLOAD_PASS $REPODIR/$f
-    elif [ "$f" = "Packages.gz" ]
+    elif [ "$f" = "Sources.gz" ]
     then
         $GC_UPLOAD -s "Sources.gz Debian repository file" -p "$PROJECT" -u $UPLOAD_USER -w $UPLOAD_PASS $REPODIR/$f
     elif echo $f | grep \.diff\.gz
