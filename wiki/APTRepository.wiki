@@ -17,6 +17,8 @@ deb http://ros-n900.googlecode.com/files /
 
 `ros-boxturtle-base` package is optified, this means it will install in `/opt/ros-boxturtle-base/` directory, in `/opt` partition (2GB) instead of rootfs (256MB).
 
+You can also install ROS tutorials with `apt-get install ros-boxturtle-tutorials`
+
 Use the same URL to deal with Debian source packages:
 
 {{{
