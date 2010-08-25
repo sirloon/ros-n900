@@ -2,7 +2,6 @@
 import roslib
 roslib.load_manifest('n900-cam')
 import sys
-sys.path.insert(0,"/usr/local/lib/python2.6/site-packages")
 import rospy
 import cv
 from std_msgs.msg import String
@@ -60,7 +59,7 @@ class face_detect(object):
 
   def callback(self,data):
     try:
-      cv_image = self.bridge.imgmsg_to_cv(data, "rgb8")
+      cv_image = self.bridge.imgmsg_to_cv(data, "bgr8")
     except CvBridgeError, e:
       print e
 
@@ -70,7 +69,7 @@ class face_detect(object):
     cv.WaitKey(3)
 
     try:
-      self.image_pub.publish(self.bridge.cv_to_imgmsg(cv_image, "rgb8"))
+      self.image_pub.publish(self.bridge.cv_to_imgmsg(cv_image, "bgr8"))
     except CvBridgeError, e:
       print e
 
