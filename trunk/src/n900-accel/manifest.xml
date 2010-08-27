@@ -1,0 +1,17 @@
+<package>
+  <description brief="n900-accel">
+
+    This package deals with N900 accelerometer. It published
+    IMU data from it.
+
+  </description>
+  <author>Sebastien Lelong</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros-n900.googlecode.com</url>
+  <depend package="std_msgs"/>
+  <depend package="rospy"/>
+
+</package>
+
+
