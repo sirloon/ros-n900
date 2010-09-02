@@ -8,8 +8,6 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image, RegionOfInterest
 from cv_bridge import CvBridge, CvBridgeError
 
-from n900_cam.msg import Face
-
 min_size = (20, 20)
 image_scale = 2
 haar_scale = 1.2
@@ -19,7 +17,7 @@ haar_flags = 0
 class face_detect(object):
 
   def __init__(self):
-    self.face_pub = rospy.Publisher("face_topic",Face)
+    self.face_pub = rospy.Publisher("/face_topic",Image)
 
     cv.NamedWindow("Image window", 1)
     self.bridge = CvBridge()
@@ -53,8 +51,8 @@ class face_detect(object):
                 pt2 = (int((x + w) * image_scale), int((y + h) * image_scale))
                 cv.Rectangle(img, pt1, pt2, cv.RGB(255, 0, 0), 3, 8, 0)
                 roi = RegionOfInterest(x_offset=x,y_offset=y,height=h,width=w)
-                face_msg = Face(image=img,face=roi)
-                self.face_pub.publish(face_msg)
+                face_img = cv.GetSubRect(img,(x*image_scale,y*image_scale,w*image_scale,h*image_scale))
+                self.face_pub.publish(self.bridge.cv_to_imgmsg(face_img,"mono8"))
       
     return img
 
