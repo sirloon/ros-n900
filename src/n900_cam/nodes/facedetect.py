@@ -8,7 +8,7 @@ from std_msgs.msg import String
 from sensor_msgs.msg import Image, RegionOfInterest
 from cv_bridge import CvBridge, CvBridgeError
 
-min_size = (20, 20)
+min_size = (90,90)  # adjust high/low whether detection or recognition is wanted
 image_scale = 2
 haar_scale = 1.2
 min_neighbors = 2
@@ -34,25 +34,38 @@ class face_detect(object):
   
     # scale input image for faster processing
     cv.Resize(img, small_img, cv.CV_INTER_LINEAR)
+    # since image is resized, we need to resize detection area as well
+    min_resize = tuple(map(lambda x: x/image_scale,min_size))
   
     cv.EqualizeHist(small_img, small_img)
   
     if(self.cascade):
         t = cv.GetTickCount()
         faces = cv.HaarDetectObjects(small_img, self.cascade, cv.CreateMemStorage(0),
-                                     haar_scale, min_neighbors, haar_flags, min_size)
+                                     haar_scale, min_neighbors, haar_flags, min_resize)
         t = cv.GetTickCount() - t
-        print "detection time = %gms" % (t/(cv.GetTickFrequency()*1000.))
         if faces:
+            print "detection time = %gms" % (t/(cv.GetTickFrequency()*1000.))
             for ((x, y, w, h), n) in faces:
                 # the input to cv.HaarDetectObjects was resized, so scale the 
                 # bounding box of each face and convert it to two CvPoints
-                pt1 = (int(x * image_scale), int(y * image_scale))
-                pt2 = (int((x + w) * image_scale), int((y + h) * image_scale))
-                cv.Rectangle(img, pt1, pt2, cv.RGB(255, 0, 0), 3, 8, 0)
-                roi = RegionOfInterest(x_offset=x,y_offset=y,height=h,width=w)
-                face_img = cv.GetSubRect(img,(x*image_scale,y*image_scale,w*image_scale,h*image_scale))
+
+                # add some more area because detected faces are little narrow (eg. hair missing)
+                adjust = 0.1    # 10% more
+                x = x * (1-adjust) * image_scale
+                y = y * (1-adjust) * image_scale
+                w = w * (1+adjust) * image_scale
+                h = h * (1+adjust) * image_scale
+
+                pt1 = (x,y)
+                pt2 = (x + w, y + h)
+
+                face_img = cv.GetSubRect(img,(x,y,w,h))
+                cv.EqualizeHist(face_img,face_img)  # this should help having consistent data (or not...)
+                # publish face before adding rectangle
                 self.face_pub.publish(self.bridge.cv_to_imgmsg(face_img,"mono8"))
+
+                cv.Rectangle(img, pt1, pt2, cv.RGB(255, 0, 0), 3, 8, 0)
       
     return img
 
