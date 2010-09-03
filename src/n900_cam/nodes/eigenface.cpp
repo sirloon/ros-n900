@@ -1,6 +1,8 @@
 /*
- * Eigenface, from example by by Robin Hewitt,
+ * Eigenface, from example by Robin Hewitt,
  * adapted to fit into ROS
+ * Careful, this is really, really ugly code, I'm not
+ * fluent in C/C++, this is programming by coincidence...
 */
 
 
@@ -16,20 +18,19 @@
 #include "cvaux.h"
 #include "highgui.h"
 
-#include "n900_cam/Face.h"
-
 //// Global variables (OpenCV
 IplImage ** faceImgArr        = 0; // array of face images
 CvMat    *  personNumTruthMat = 0; // array of person numbers
-int nTrainFaces               = 30; // the number of training images
+int nTrainFaces               = 100; // the number of training images
 char* personName              = 0; // person name being "acquired"
 int nCurrentFaces             = 0; // current face number during learning step
 int nEigens                   = 0; // the number of eigenvalues
-double faceDist               = DBL_MAX;
+//double faceDist               = DBL_MAX;
 IplImage * pAvgTrainImg       = 0; // the average image
 IplImage ** eigenVectArr      = 0; // eigenvectors
 CvMat * eigenValMat           = 0; // eigenvalues
 CvMat * projectedTrainFaceMat = 0; // projected training faces
+CvMat * trainPersonNumMat     = 0; // the person numbers during training
 
 //// Function prototypes (OpenCV)
 void learn();
@@ -37,9 +38,10 @@ void recognize();
 void doPCA();
 void storeTrainingData(const char* filename = "facedata.xml");
 int  loadTrainingData(CvMat ** pTrainPersonNumMat);
-int  findNearestNeighbor(float * projectedTestFace);
+int*  findNearestNeighbor(float * projectedTestFace, int* results);
 int  loadFaceImgArray(char * filename);
 void printUsage();
+ros::Publisher whois_pub;
 
 
 // Global variables (ROS)
@@ -51,7 +53,7 @@ int currentMode = 1;
 // Function prototypes (ROS)
 void imageCallback(const sensor_msgs::ImageConstPtr& face);
 void recognizeLive(IplImage* cv_image);
-void learnLive(IplImage* cv_image);
+void acquire(IplImage* cv_image);
 
 
 int main(int argc, char **argv)
@@ -68,22 +70,27 @@ int main(int argc, char **argv)
      */
     ros::init(argc, argv, "eigenface");
 
-    if(argc > 1)
+    if(argc >= 2)
     {
-        if( !strcmp(argv[1], "learn") )
+        if( !strcmp(argv[1], "acquire") )
         {
             personName = argv[2];
+            ROS_INFO("argc: %d",argc);
+            if(argc == 4)
+                nTrainFaces = atoi(argv[3]);
             currentMode = MODE_LEARN;
             // init array containing training faces
             faceImgArr = (IplImage **)cvAlloc( nTrainFaces*sizeof(IplImage *) );
 	        personNumTruthMat = cvCreateMat( 1, nTrainFaces, CV_32SC1 );
-            ROS_INFO("Acquiring %s's face...",personName);
+            ROS_INFO("Acquiring %d %s's faces...",nTrainFaces,personName);
         }
         else if( !strcmp(argv[1], "recognize") )
         {
+	        // load the saved training data
+            if( !loadTrainingData( &trainPersonNumMat ) ) return 1;
             currentMode = MODE_RECOGNIZE;
         }
-        else if( !strcmp(argv[1], "test_learn") )
+        else if( !strcmp(argv[1], "learn") )
         {
             learn();
             return 0;
@@ -110,6 +117,7 @@ int main(int argc, char **argv)
     ros::NodeHandle n;
 
     ros::Subscriber sub = n.subscribe("face_topic", 1000, imageCallback);
+    whois_pub = n.advertise<std_msgs::String>("whois", 1000);
 
     ros::Rate loop_rate(10);
 
@@ -190,7 +198,7 @@ void learn()
 
 	// store the recognition data as an xml file
 	storeTrainingData();
-    ROS_INFO("Learnt %d faces from face database",nTrainFaces);
+    ROS_INFO("Learned %d faces from face database",nTrainFaces);
 }
 
 
@@ -200,7 +208,6 @@ void learn()
 void recognize()
 {
 	int i, nTestFaces  = 0;         // the number of test images
-	CvMat * trainPersonNumMat = 0;  // the person numbers during training
 	float * projectedTestFace = 0;
 
 	// load test images and ground truth for person number
@@ -225,9 +232,13 @@ void recognize()
 			pAvgTrainImg,
 			projectedTestFace);
 
-		iNearest = findNearestNeighbor(projectedTestFace);
+		//iNearest = findNearestNeighbor(projectedTestFace);
+        int *res = (int*)malloc(2*sizeof(int));
+        findNearestNeighbor(projectedTestFace,res);
+        iNearest = res[0];
 		truth    = personNumTruthMat->data.i[i];
 		nearest  = trainPersonNumMat->data.i[iNearest];
+        free(res);
 
 		printf("nearest = %d, Truth = %d\n", nearest, truth);
 	}
@@ -305,7 +316,7 @@ void storeTrainingData(const char* filename)
 //////////////////////////////////
 // findNearestNeighbor()
 //
-int findNearestNeighbor(float * projectedTestFace)
+int* findNearestNeighbor(float * projectedTestFace,int* results)
 {
 	//double leastDistSq = 1e12;
 	double leastDistSq = DBL_MAX;
@@ -328,11 +339,13 @@ int findNearestNeighbor(float * projectedTestFace)
 		{
 			leastDistSq = distSq;
 			iNearest = iTrain;
-            faceDist = distSq;
+            //faceDist = distSq;
+            results[0] = iNearest;
+            results[1] = int(distSq);
 		}
 	}
 
-	return iNearest;
+	return results;
 }
 
 
@@ -434,7 +447,7 @@ int loadFaceImgArray(char * filename)
 //
 void printUsage()
 {
-	ROS_INFO("Usage: eigenface <command>\nValid commands are\n     learn <name>\n     recognize\n");
+	ROS_INFO("Usage: eigenface <command>\nValid commands are\n     acquire <name>\n     recognize\n      learn");
 }
 
 
@@ -460,7 +473,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& img)
 
     if(currentMode == MODE_LEARN)
     {
-        learnLive(cv_image);
+        acquire(cv_image);
     }
     else if(currentMode == MODE_RECOGNIZE)
     {
@@ -475,11 +488,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& img)
 void recognizeLive(IplImage* cv_image)
 {
 	int i, nTestFaces  = 0;         // the number of test images
-	CvMat * trainPersonNumMat = 0;  // the person numbers during training
 	float * projectedTestFace = 0;
-
-	// load the saved training data
-	if( !loadTrainingData( &trainPersonNumMat ) ) return;
 
 	// project the test images onto the PCA subspace
 	projectedTestFace = (float *)cvAlloc( nEigens*sizeof(float) );
@@ -502,23 +511,37 @@ void recognizeLive(IplImage* cv_image)
 		pAvgTrainImg,
 		projectedTestFace);
 
+    cvReleaseImage(&scaledimg);
+
 	personNumTruthMat = cvCreateMat( 1, 1, CV_32SC1 );
 
-	iNearest = findNearestNeighbor(projectedTestFace);
-	nearest  = trainPersonNumMat->data.i[iNearest];
+	//iNearest = findNearestNeighbor(projectedTestFace);
+    int* res = (int*)malloc(2*sizeof(int));
+    findNearestNeighbor(projectedTestFace,res);
+    iNearest = res[0];
+    // only keep closest faces
+    if(res[1] < 10000000)
+    {
+        nearest  = trainPersonNumMat->data.i[iNearest];
+        ROS_INFO("Live ! nearest = %d (%d)", nearest,res[1]);
+        std::stringstream outputtmp;
+        std::string output;
+        outputtmp << nearest;
+        output = outputtmp.str();
+        cvShowImage(output.c_str(), cv_image);
+        //cvWaitKey(3);
+        std_msgs::String who;
+        who.data = outputtmp.str();
+        whois_pub.publish(who);
 
-	ROS_INFO("Live ! nearest = %d (%f)", nearest,faceDist);
-
-    std::stringstream outputtmp;
-    std::string output;
-    outputtmp << "Yo " <<  nearest;
-    output = outputtmp.str();
-    cvShowImage(output.c_str(), cv_image);
-    cvWaitKey(3);
+    }
+    free(res);
+    cvFree(&projectedTestFace);
+    cvFree(&personNumTruthMat);
 
 }
 
-void learnLive(IplImage* cv_image)
+void acquire(IplImage* cv_image)
 {
 	int i, offset;
     ROS_INFO("Live learning !");
@@ -544,28 +567,7 @@ void learnLive(IplImage* cv_image)
         return;
     }
 
-    ROS_INFO("Enough acquired faces, learning...");
-	// do PCA on the training faces
-	doPCA();
-
-	// project the training images onto the PCA subspace
-	projectedTrainFaceMat = cvCreateMat( nTrainFaces, nEigens, CV_32FC1 );
-	offset = projectedTrainFaceMat->step / sizeof(float);
-	for(i=0; i<nTrainFaces; i++)
-	{
-		//int offset = i * nEigens;
-		cvEigenDecomposite(
-			faceImgArr[i],
-			nEigens,
-			eigenVectArr,
-			0, 0,
-			pAvgTrainImg,
-			//projectedTrainFaceMat->data.fl + i*nEigens);
-			projectedTrainFaceMat->data.fl + i*offset);
-	}
-
-	// store the recognition data as an xml file
-	storeTrainingData();
-    ROS_INFO("Learnt %d faces from face database",nTrainFaces);
-    currentMode = MODE_RECOGNIZE;
+    ROS_INFO("Enough acquired faces");
+    exit(0);
 }
+
