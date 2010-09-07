@@ -23,6 +23,7 @@
 //// Global variables (OpenCV
 IplImage ** faceImgArr        = 0; // array of face images
 CvMat    *  personNumTruthMat = 0; // array of person numbers
+char ** personNames;
 int nTrainFaces               = 100; // the number of training images
 char* personName              = 0; // person name being "acquired"
 int nCurrentFaces             = 0; // current face number during learning step
@@ -37,7 +38,7 @@ CvMat * trainPersonNumMat     = 0; // the person numbers during training
 void learn();
 void recognize();
 void doPCA();
-void storeTrainingData(const char* filename = "facedata.xml");
+void storeTrainingData(const char* filename = "data/facedata.xml");
 int  loadTrainingData(CvMat ** pTrainPersonNumMat);
 int*  findNearestNeighbor(float * projectedTestFace, int* results);
 int  loadFaceImgArray(const char * filename);
@@ -47,7 +48,7 @@ ros::Publisher whois_pub;
 
 // Global variables (ROS)
 sensor_msgs::CvBridge bridge_;
-const int MODE_LEARN = 0;
+const int MODE_ACQUIRE = 0;
 const int MODE_RECOGNIZE = 1;
 int currentMode = 1;
 
@@ -79,7 +80,7 @@ int main(int argc, char **argv)
             ROS_INFO("argc: %d",argc);
             if(argc == 4)
                 nTrainFaces = atoi(argv[3]);
-            currentMode = MODE_LEARN;
+            currentMode = MODE_ACQUIRE;
             // init array containing training faces
             faceImgArr = (IplImage **)cvAlloc( nTrainFaces*sizeof(IplImage *) );
 	        personNumTruthMat = cvCreateMat( 1, nTrainFaces, CV_32SC1 );
@@ -89,6 +90,7 @@ int main(int argc, char **argv)
         {
 	        // load the saved training data
             if( !loadTrainingData( &trainPersonNumMat ) ) return 1;
+	        loadFaceImgArray("data/train.txt");
             currentMode = MODE_RECOGNIZE;
         }
         else if( !strcmp(argv[1], "learn") )
@@ -255,7 +257,8 @@ int loadTrainingData(CvMat ** pTrainPersonNumMat)
 	int i;
 
 	// create a file-storage interface
-	fileStorage = cvOpenFileStorage( "facedata.xml", 0, CV_STORAGE_READ );
+    ROS_INFO("bla");
+	fileStorage = cvOpenFileStorage( "data/facedata.xml", 0, CV_STORAGE_READ );
 	if( !fileStorage )
 	{
 		fprintf(stderr, "Can't open facedata.xml\n");
@@ -417,22 +420,24 @@ int loadFaceImgArray(const char * filename)
 
 	// allocate the face-image array and person number matrix
 	faceImgArr        = (IplImage **)cvAlloc( nFaces*sizeof(IplImage *) );
+    personNames = (char **)malloc(nFaces*sizeof(char*) );
 	personNumTruthMat = cvCreateMat( 1, nFaces, CV_32SC1 );
 
 	// store the face images in an array
 	for(iFace=0; iFace<nFaces; iFace++)
 	{
+        char name[128];
 		// read person number and name of image file
-		fscanf(imgListFile,
-			"%d %s", personNumTruthMat->data.i+iFace, imgFilename);
-
+		int res = fscanf(imgListFile,"%d %s %s", personNumTruthMat->data.i+iFace,name, imgFilename);
 		// load the face image
 		faceImgArr[iFace] = cvLoadImage(imgFilename, CV_LOAD_IMAGE_GRAYSCALE);
+        personNames[iFace] = (char *)malloc(128*sizeof(char));
+        strcpy(personNames[iFace],name);
 
 		if( !faceImgArr[iFace] )
 		{
-			fprintf(stderr, "Can\'t load image from %s\n", imgFilename);
-			return 0;
+			fprintf(stderr, "Can\'t load image from '%s'\n", imgFilename);
+			exit(255);
 		}
 	}
 
@@ -469,9 +474,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& img)
     cvShowImage("Image window", cv_image);
     cvWaitKey(3);
 
-    ROS_INFO("currentMode: %d",currentMode);
-
-    if(currentMode == MODE_LEARN)
+    if(currentMode == MODE_ACQUIRE)
     {
         acquire(cv_image);
     }
@@ -488,6 +491,7 @@ void imageCallback(const sensor_msgs::ImageConstPtr& img)
 void recognizeLive(IplImage* cv_image)
 {
 	float * projectedTestFace = 0;
+    int nTrainFaces = 0;
 
 	// project the test images onto the PCA subspace
 	projectedTestFace = (float *)cvAlloc( nEigens*sizeof(float) );
@@ -523,7 +527,7 @@ void recognizeLive(IplImage* cv_image)
     if(res[1] < 10000000)
     {
         nearest  = trainPersonNumMat->data.i[iNearest];
-        ROS_INFO("Live ! nearest = %d (%d)", nearest,euclDist);
+        ROS_INFO("Live ! nearest = %d (%d) => %s", nearest,euclDist,personNames[iNearest]);
         std::stringstream outputtmp;
         std::string output;
         outputtmp << nearest;
@@ -533,7 +537,7 @@ void recognizeLive(IplImage* cv_image)
         n900_cam::Whois who;
         //std_msgs::String who;
 
-        who.name = outputtmp.str();
+        who.name = personNames[iNearest];
         who.distance = euclDist;
         whois_pub.publish(who);
 
@@ -546,8 +550,7 @@ void recognizeLive(IplImage* cv_image)
 
 void acquire(IplImage* cv_image)
 {
-	int  offset;
-    ROS_INFO("Live learning !");
+    ROS_INFO("Live acquiring !");
 
     if(cv_image->width > 10)
     {
@@ -566,11 +569,5 @@ void acquire(IplImage* cv_image)
         ROS_INFO("Acquired %d/%d faces...",nCurrentFaces,nTrainFaces);
     }
     if(nCurrentFaces != nTrainFaces)
-    {
         return;
-    }
-
-    ROS_INFO("Enough acquired faces");
-    exit(0);
 }
-
