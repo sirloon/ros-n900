@@ -18,6 +18,8 @@
 #include "cvaux.h"
 #include "highgui.h"
 
+#include "n900_cam/Whois.h"
+
 //// Global variables (OpenCV
 IplImage ** faceImgArr        = 0; // array of face images
 CvMat    *  personNumTruthMat = 0; // array of person numbers
@@ -25,7 +27,6 @@ int nTrainFaces               = 100; // the number of training images
 char* personName              = 0; // person name being "acquired"
 int nCurrentFaces             = 0; // current face number during learning step
 int nEigens                   = 0; // the number of eigenvalues
-//double faceDist               = DBL_MAX;
 IplImage * pAvgTrainImg       = 0; // the average image
 IplImage ** eigenVectArr      = 0; // eigenvectors
 CvMat * eigenValMat           = 0; // eigenvalues
@@ -39,7 +40,7 @@ void doPCA();
 void storeTrainingData(const char* filename = "facedata.xml");
 int  loadTrainingData(CvMat ** pTrainPersonNumMat);
 int*  findNearestNeighbor(float * projectedTestFace, int* results);
-int  loadFaceImgArray(char * filename);
+int  loadFaceImgArray(const char * filename);
 void printUsage();
 ros::Publisher whois_pub;
 
@@ -117,7 +118,7 @@ int main(int argc, char **argv)
     ros::NodeHandle n;
 
     ros::Subscriber sub = n.subscribe("face_topic", 1000, imageCallback);
-    whois_pub = n.advertise<std_msgs::String>("whois", 1000);
+    whois_pub = n.advertise<n900_cam::Whois>("whois", 1000);
 
     ros::Rate loop_rate(10);
 
@@ -339,7 +340,6 @@ int* findNearestNeighbor(float * projectedTestFace,int* results)
 		{
 			leastDistSq = distSq;
 			iNearest = iTrain;
-            //faceDist = distSq;
             results[0] = iNearest;
             results[1] = int(distSq);
 		}
@@ -397,7 +397,7 @@ void doPCA()
 //////////////////////////////////
 // loadFaceImgArray()
 //
-int loadFaceImgArray(char * filename)
+int loadFaceImgArray(const char * filename)
 {
 	FILE * imgListFile = 0;
 	char imgFilename[512];
@@ -447,7 +447,7 @@ int loadFaceImgArray(char * filename)
 //
 void printUsage()
 {
-	ROS_INFO("Usage: eigenface <command>\nValid commands are\n     acquire <name>\n     recognize\n      learn");
+	ROS_INFO("Usage: eigenface <command>\nValid commands are\n     acquire <name>\n     recognize\n     learn");
 }
 
 
@@ -487,12 +487,11 @@ void imageCallback(const sensor_msgs::ImageConstPtr& img)
 
 void recognizeLive(IplImage* cv_image)
 {
-	int i, nTestFaces  = 0;         // the number of test images
 	float * projectedTestFace = 0;
 
 	// project the test images onto the PCA subspace
 	projectedTestFace = (float *)cvAlloc( nEigens*sizeof(float) );
-	int iNearest, nearest;
+	int iNearest, nearest, euclDist;
 
     // Grayscale only
     IplImage* scaledimg = NULL;
@@ -519,19 +518,23 @@ void recognizeLive(IplImage* cv_image)
     int* res = (int*)malloc(2*sizeof(int));
     findNearestNeighbor(projectedTestFace,res);
     iNearest = res[0];
+    euclDist = res[1];
     // only keep closest faces
     if(res[1] < 10000000)
     {
         nearest  = trainPersonNumMat->data.i[iNearest];
-        ROS_INFO("Live ! nearest = %d (%d)", nearest,res[1]);
+        ROS_INFO("Live ! nearest = %d (%d)", nearest,euclDist);
         std::stringstream outputtmp;
         std::string output;
         outputtmp << nearest;
         output = outputtmp.str();
         cvShowImage(output.c_str(), cv_image);
         //cvWaitKey(3);
-        std_msgs::String who;
-        who.data = outputtmp.str();
+        n900_cam::Whois who;
+        //std_msgs::String who;
+
+        who.name = outputtmp.str();
+        who.distance = euclDist;
         whois_pub.publish(who);
 
     }
@@ -543,7 +546,7 @@ void recognizeLive(IplImage* cv_image)
 
 void acquire(IplImage* cv_image)
 {
-	int i, offset;
+	int  offset;
     ROS_INFO("Live learning !");
 
     if(cv_image->width > 10)
